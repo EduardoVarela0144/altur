@@ -50,7 +50,7 @@ services:
     networks:
       - altur-network
     environment:
-      - VITE_API_URL=http://backend:5000
+      - VITE_API_URL=http://localhost:5000
       - NODE_ENV=development
       - DOCKER_ENV=true
     command: sh -c "npm install && npm run dev -- --host"
