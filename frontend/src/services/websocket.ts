@@ -1,6 +1,5 @@
 import { io, Socket } from 'socket.io-client'
-
-const WS_URL = 'http://localhost:5000'
+import { WS_URL } from '../config'
 
 export interface ProgressUpdate {
   session_id: string

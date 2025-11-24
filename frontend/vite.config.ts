@@ -3,8 +3,12 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig(({ mode }) => {
-  // In Docker Compose, always use 'backend' as the hostname
-  const backendUrl = 'http://backend:5000'
+  // In Docker Compose, use 'backend' as the hostname
+  // In local dev, use localhost
+  // In production (Render), the proxy is not used - API calls go directly to VITE_API_URL
+  const backendUrl = process.env.DOCKER_ENV 
+    ? 'http://backend:5000' 
+    : 'http://localhost:5000'
   
   console.error(`[Vite Config] Proxy target: ${backendUrl}`)
 

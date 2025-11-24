@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useMutation, UseMutationResult } from '@tanstack/react-query'
 import axios from 'axios'
-
-// Use localhost:5000 directly since backend is exposed on host port 5000
-const API_BASE_URL = 'http://localhost:5000'
+import { API_BASE_URL } from '../config'
 
 interface LoginData {
   username: string
