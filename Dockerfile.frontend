@@ -5,7 +5,7 @@ WORKDIR /app
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies
+# Install dependencies (will be overridden by volume, but needed for initial build)
 RUN npm install
 
 # Copy application code
@@ -14,6 +14,6 @@ COPY frontend/ .
 # Expose port
 EXPOSE 5173
 
-# Start development server
-CMD ["npm", "run", "dev", "--", "--host"]
+# Start development server (will use start.sh from volume if it exists)
+CMD ["sh", "-c", "if [ -f start.sh ]; then ./start.sh; else npm run dev -- --host; fi"]
 

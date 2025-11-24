@@ -42,9 +42,12 @@ api.interceptors.response.use(
 
 export const callsAPI = {
   // Upload and process a call
-  uploadCall: async (file: File): Promise<ApiResponse<Call>> => {
+  uploadCall: async (file: File, sessionId?: string): Promise<ApiResponse<Call>> => {
     const formData = new FormData()
     formData.append('file', file)
+    if (sessionId) {
+      formData.append('session_id', sessionId)
+    }
 
     const response = await api.post<ApiResponse<Call>>('/api/calls', formData, {
       headers: {

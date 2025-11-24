@@ -1,0 +1,6 @@
+#!/bin/sh
+echo "Installing/updating dependencies..."
+npm install
+echo "Starting development server..."
+exec npm run dev -- --host
+

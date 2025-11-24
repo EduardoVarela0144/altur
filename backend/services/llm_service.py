@@ -9,7 +9,7 @@ from openai import OpenAI
 class LLMService:
     """Service for analyzing transcripts using OpenAI API"""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4o-mini"):
         """
         Initialize the LLM service
         
@@ -45,41 +45,41 @@ class LLMService:
                 "insights": []
             }
         
-        prompt = f"""Analyze the following phone call transcript in detail and provide a comprehensive analysis.
+        # Simplified prompt for faster processing - truncate transcript in prompt
+        transcript_truncated = transcript[:1000] if len(transcript) > 1000 else transcript
+        prompt = f"""Analyze this phone call transcript. Return ONLY valid JSON:
 
-REQUIREMENTS:
-1. Summary: A concise summary of the call (2-3 sentences)
-2. Tags: One or more relevant tags from: "client wants to buy", "wrong number", "needs follow-up", "voicemail", "complaint", "inquiry", "sale", "support", "other"
-3. Roles: Identify who is speaking (e.g., "agent", "customer", "manager", "support"). Return as object with speaker labels and their roles
-4. Emotions: Detect emotional responses (e.g., "happy", "frustrated", "angry", "satisfied", "confused", "neutral")
-5. Intent: Primary user intent (e.g., "purchase", "complaint", "information", "support", "cancel", "other")
-6. Mood: Overall mood of the conversation (e.g., "positive", "negative", "neutral", "mixed")
-7. Insights: Extract 2-3 valuable insights or key points from the conversation
+{{
+    "summary": "2-3 sentence summary",
+    "tags": ["tag1", "tag2"],
+    "roles": {{"speaker1": "agent/customer", "speaker2": "agent/customer"}},
+    "emotions": ["emotion1", "emotion2"],
+    "intent": "purchase/complaint/information/support/cancel/other",
+    "mood": "positive/negative/neutral/mixed",
+    "insights": ["insight1", "insight2"]
+}}
+
+Available tags: "client wants to buy", "wrong number", "needs follow-up", "voicemail", "complaint", "inquiry", "sale", "support", "other"
+Available emotions: "happy", "frustrated", "angry", "satisfied", "confused", "neutral"
 
 Transcript:
-{transcript}
+{transcript_truncated}
 
-Respond in JSON format with this EXACT structure:
-{{
-    "summary": "your summary here",
-    "tags": ["tag1", "tag2"],
-    "roles": {{"speaker1": "agent", "speaker2": "customer"}},
-    "emotions": ["emotion1", "emotion2"],
-    "intent": "primary intent",
-    "mood": "overall mood",
-    "insights": ["insight1", "insight2", "insight3"]
-}}"""
+JSON:"""
 
         try:
             print(f"[LLM] Analyzing transcript ({len(transcript)} characters)...")
+            # Optimize for speed: use faster model, reduce tokens, lower temperature
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are an expert assistant that analyzes phone call transcripts. Always respond with valid JSON only. Be thorough in detecting roles, emotions, intent, and extracting insights."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=1000
+                temperature=0.1,  # Very low temperature for fastest, most deterministic responses
+                max_tokens=500,  # Further reduced for faster responses
+                timeout=15.0,  # Shorter timeout to prevent hanging
+                stream=False,  # Explicitly disable streaming for faster response
             )
             
             result_text = response.choices[0].message.content.strip()
@@ -175,7 +175,8 @@ def get_llm_service() -> LLMService:
     """Get or create the global LLM service instance"""
     global _llm_service
     if _llm_service is None:
-        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        # Default to gpt-4o-mini for faster and cheaper processing
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         _llm_service = LLMService(model=model)
     return _llm_service
 

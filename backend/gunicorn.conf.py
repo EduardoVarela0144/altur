@@ -7,9 +7,9 @@ bind_host = os.getenv("BIND_HOST", "0.0.0.0")
 bind_port = os.getenv("PORT", "5000")
 bind = f"{bind_host}:{bind_port}"
 
-workers = int(os.getenv("GUNICORN_WORKERS", "2"))
+workers = int(os.getenv("GUNICORN_WORKERS", "1"))  # SocketIO works better with 1 worker
 timeout = int(os.getenv("GUNICORN_TIMEOUT", "1000"))
-worker_class = "sync"
+worker_class = "eventlet"  # Required for Flask-SocketIO
 worker_connections = 1000
 keepalive = 5
 

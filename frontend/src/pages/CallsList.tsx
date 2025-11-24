@@ -27,11 +27,25 @@ import {
   Visibility,
   Download,
   FilterList,
-  DateRange,
 } from '@mui/icons-material'
+
+// Helper function to format time in seconds to MM:SS or HH:MM:SS
+const formatTime = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (mins < 60) {
+    return `${mins}m ${secs}s`
+  }
+  const hours = Math.floor(mins / 60)
+  const remainingMins = mins % 60
+  return `${hours}h ${remainingMins}m ${secs}s`
+}
 import { format } from 'date-fns'
 import { useGetCalls } from '../hooks/useGetCalls'
-import { useUploadCall } from '../hooks/useUploadCall'
+import { useUploadCallWithProgress } from '../hooks/useUploadCallWithProgress'
 import { useDeleteCall } from '../hooks/useDeleteCall'
 import { useExportCall } from '../hooks/useExportCall'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
@@ -55,7 +69,16 @@ const CallsList = () => {
   if (endDate) params.end_date = endDate.toISOString()
 
   const { data: calls = [], isLoading: loading, error, refetch } = useGetCalls(params)
-  const { mutate: uploadCall, isPending: uploading, error: uploadError } = useUploadCall()
+  const { upload, progress, isUploading, error: uploadError, result } = useUploadCallWithProgress()
+  
+  // Close dialog when upload completes successfully
+  useEffect(() => {
+    if (result && !isUploading) {
+      setSuccess('Call uploaded and processed successfully!')
+      setUploadDialogOpen(false)
+      setSelectedFile(null)
+    }
+  }, [result, isUploading])
   const { mutate: deleteCallMutation, error: deleteError } = useDeleteCall()
   const { mutate: exportCallMutation, error: exportError } = useExportCall()
 
@@ -87,25 +110,37 @@ const CallsList = () => {
     }
   }
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!selectedFile) {
       return
     }
 
-    setSuccess('Uploading and processing call... This may take a few moments.')
-    uploadCall(selectedFile, {
-      onSuccess: () => {
-        setSuccess('Call uploaded and processed successfully!')
-        setUploadDialogOpen(false)
-        setSelectedFile(null)
-        refetch()
-        setTimeout(() => setSuccess(null), 5000)
-      },
-      onError: (error: Error) => {
-        setSuccess(null)
-      },
-    })
+    setSuccess('Starting upload...')
+    try {
+      await upload(selectedFile)
+      // Progress updates will come via WebSocket
+    } catch (error: any) {
+      setSuccess(null)
+    }
   }
+
+  // Handle upload completion
+  useEffect(() => {
+    if (result) {
+      setSuccess('Call uploaded and processed successfully!')
+      setUploadDialogOpen(false)
+      setSelectedFile(null)
+      refetch()
+      setTimeout(() => setSuccess(null), 5000)
+    }
+  }, [result, refetch])
+
+  // Handle upload errors
+  useEffect(() => {
+    if (uploadError) {
+      setSuccess(null)
+    }
+  }, [uploadError])
 
   const handleDelete = (id: string) => {
     if (!window.confirm('Are you sure you want to delete this call?')) {
@@ -130,7 +165,7 @@ const CallsList = () => {
     })
   }
 
-  const displayError = error?.message || uploadError?.message || deleteError?.message || exportError?.message
+  const displayError = error?.message || uploadError || (deleteError as Error)?.message || (exportError as Error)?.message
 
   return (
     <Box>
@@ -280,7 +315,13 @@ const CallsList = () => {
         </Grid>
       )}
 
-      <Dialog open={uploadDialogOpen} onClose={() => setUploadDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={uploadDialogOpen} 
+        onClose={() => !isUploading && setUploadDialogOpen(false)}
+        maxWidth="sm" 
+        fullWidth
+        disableEscapeKeyDown={isUploading}
+      >
         <DialogTitle>Upload Call</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
@@ -290,9 +331,10 @@ const CallsList = () => {
               id="file-upload"
               type="file"
               onChange={handleFileSelect}
+              disabled={isUploading}
             />
             <label htmlFor="file-upload">
-              <Button variant="outlined" component="span" fullWidth>
+              <Button variant="outlined" component="span" fullWidth disabled={isUploading}>
                 {selectedFile ? selectedFile.name : 'Select Audio File'}
               </Button>
             </label>
@@ -301,17 +343,104 @@ const CallsList = () => {
                 Size: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
               </Typography>
             )}
+            
+            {isUploading && (
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'rgba(25, 118, 210, 0.05)', borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" fontWeight={600} color="primary" sx={{ mb: 0.5 }}>
+                      {progress?.message || 'Preparing upload...'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {progress?.stage ? `Stage: ${progress.stage}` : 'Initializing...'}
+                    </Typography>
+                  </Box>
+                  <Typography variant="h6" fontWeight={700} color="primary" sx={{ ml: 2 }}>
+                    {progress?.progress ?? 0}%
+                  </Typography>
+                </Box>
+                <LinearProgress 
+                  variant="determinate"
+                  value={progress?.progress ?? 0} 
+                  sx={{ 
+                    height: 10, 
+                    borderRadius: 5,
+                    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 5,
+                      background: 'linear-gradient(90deg, #1976D2 0%, #42A5F5 100%)',
+                      transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                    },
+                    transition: 'all 0.3s ease-in-out',
+                  }}
+                />
+                <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        bgcolor: progress?.progress === 100 ? 'success.main' : 'primary.main',
+                        animation: progress?.progress !== 100 ? 'pulse 2s infinite' : 'none',
+                        '@keyframes pulse': {
+                          '0%, 100%': {
+                            opacity: 1,
+                            transform: 'scale(1)',
+                          },
+                          '50%': {
+                            opacity: 0.5,
+                            transform: 'scale(1.2)',
+                          },
+                        },
+                      }}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      {progress?.progress === 100 
+                        ? 'Processing complete!' 
+                        : progress?.progress && progress.progress > 0
+                        ? 'Processing in progress...'
+                        : 'Waiting for server...'}
+                    </Typography>
+                  </Box>
+                  {(progress?.elapsedTime !== undefined || progress?.estimatedTimeRemaining !== undefined) && (
+                    <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
+                      {progress.elapsedTime !== undefined && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span style={{ fontWeight: 600 }}>Elapsed:</span>
+                          <span>{formatTime(progress.elapsedTime)}</span>
+                        </Typography>
+                      )}
+                      {progress.estimatedTimeRemaining !== undefined && progress.estimatedTimeRemaining > 0 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <span style={{ fontWeight: 600 }}>Est. remaining:</span>
+                          <span>{formatTime(progress.estimatedTimeRemaining)}</span>
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            )}
+            
+            {uploadError && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {uploadError}
+              </Alert>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUploadDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setUploadDialogOpen(false)} disabled={isUploading}>
+            {isUploading ? 'Close' : 'Cancel'}
+          </Button>
           <Button
             onClick={handleUpload}
             variant="contained"
-            disabled={!selectedFile || uploading}
+            disabled={!selectedFile || isUploading}
             sx={{ bgcolor: '#1976D2' }}
           >
-            {uploading ? 'Uploading...' : 'Upload'}
+            {isUploading ? 'Processing...' : 'Upload'}
           </Button>
         </DialogActions>
       </Dialog>
