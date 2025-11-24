@@ -1,7 +1,9 @@
 import axios, { AxiosInstance } from 'axios'
 import type { Call, ApiResponse, Analytics, CallsParams } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+// Use localhost:5000 directly since backend is exposed on host port 5000
+// This works both in Docker (backend is exposed) and local dev
+const API_BASE_URL = 'http://localhost:5000'
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

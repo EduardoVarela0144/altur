@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useMutation, UseMutationResult } from '@tanstack/react-query'
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+// Use localhost:5000 directly since backend is exposed on host port 5000
+const API_BASE_URL = 'http://localhost:5000'
 
 interface LoginData {
   username: string

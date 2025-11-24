@@ -51,6 +51,8 @@ services:
       - altur-network
     environment:
       - VITE_API_URL=http://backend:5000
+      - NODE_ENV=development
+      - DOCKER_ENV=true
 
 volumes:
   mongodb_data:
