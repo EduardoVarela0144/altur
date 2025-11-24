@@ -1,0 +1,6 @@
+.env
+/venv/
+compras_mx_storage_state.json
+cfe_storage_state.json
+database.db
+__pycache__/
